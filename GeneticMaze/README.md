@@ -1,6 +1,6 @@
 ![Main](1.gif)
 
-Source: https://www.youtube.com/watch?v=CGgdPvsbuJk
+Source: https://www.youtube.com/watch?v=CGgdPvsbuJk  
 Source: https://github.com/skylimitscience/GeneticMaze
 # Genetic Maze
 Python maze-solver that trains tiny agents to escape using DNA and evolution.
