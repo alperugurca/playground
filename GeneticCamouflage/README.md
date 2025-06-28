@@ -1,4 +1,4 @@
-[Camouflage](1.gif)
+![Camouflage](1.gif)
 
 Source: https://www.youtube.com/watch?v=XP2sFzp2Rig  
 Source: https://github.com/argonautcode/genetic-moth
