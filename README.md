@@ -1,6 +1,6 @@
 # 🛠️ Playground Repo
 
-This repo is my personal sandbox. A place to try things out, test ideas, and keep experiments organized.
+This repo is my personal sandbox. A place to try things out, test ideas and keep experiments organized.
 
 ## 📂 Structure
 
@@ -13,5 +13,3 @@ This repo is my personal sandbox. A place to try things out, test ideas, and kee
     or one-off ideas.
     
 ------------------------------------------------------------------------
-
-✨ Nothing here is too serious. It's just a playground for coding experiments.
