@@ -11,5 +11,3 @@ This repo is my personal sandbox. A place to try things out, test ideas and keep
   
 -   **`python/`** → Single Python scripts (`.py`) for utilities, tests,
     or one-off ideas.
-    
-------------------------------------------------------------------------
