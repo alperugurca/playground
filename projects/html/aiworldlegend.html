@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI World — Interactive Diagram</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  body {
+    background: radial-gradient(ellipse at center, #0f172a 0%, #020617 100%);
+    color: #e2e8f0;
+    user-select: none;
+  }
+
+  #controls {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: calc(100% - 32px);
+  }
+  .ctrl-btn {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #e2e8f0;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .ctrl-btn:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.8);
+    transform: translateY(-1px);
+  }
+  .ctrl-btn:active { transform: translateY(0); }
+
+  #legend {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 12px;
+    max-width: 240px;
+  }
+  #legend h4 {
+    font-size: 13px;
+    margin-bottom: 10px;
+    color: #a5b4fc;
+    letter-spacing: 0.3px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 12px;
+    color: #94a3b8;
+    pointer-events: none;
+  }
+
+  #viewport {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #viewport.dragging { cursor: grabbing; }
+
+  #canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-origin: 0 0;
+  }
+
+  #edges {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 8000px;
+    height: 8000px;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .edge {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0;
+    transition: opacity 0.5s ease, stroke-width 0.3s ease;
+  }
+  .edge.visible { opacity: 0.55; }
+  .edge.hovered { opacity: 1; stroke-width: 3.5; }
+
+  #nodes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 8000px;
+    height: 8000px;
+    overflow: visible;
+  }
+
+  .node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, opacity 0.4s ease;
+  }
+  .node.entering {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  .node:hover {
+    z-index: 50 !important;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  .node.exiting {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+
+  .node-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    backdrop-filter: blur(6px);
+  }
+  .node:hover .node-inner {
+    border-color: rgba(255, 255, 255, 0.55);
+    box-shadow: 0 8px 40px rgba(99, 102, 241, 0.5);
+  }
+
+  .node-root .node-inner {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    font-size: 22px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+    box-shadow: 0 0 60px rgba(139, 92, 246, 0.6), 0 4px 20px rgba(0, 0, 0, 0.5);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    text-align: center;
+    padding: 20px;
+    line-height: 1.2;
+  }
+  .node-root:hover .node-inner {
+    box-shadow: 0 0 80px rgba(236, 72, 153, 0.7), 0 8px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .node-branch .node-inner {
+    width: 160px;
+    height: 70px;
+    font-size: 15px;
+    padding: 0 18px;
+    border-radius: 14px;
+  }
+
+  .node-sub .node-inner {
+    width: 140px;
+    height: 56px;
+    font-size: 13px;
+    padding: 0 14px;
+    border-radius: 12px;
+  }
+
+  .node-leaf .node-inner {
+    width: auto;
+    min-width: 110px;
+    height: 42px;
+    font-size: 11.5px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+
+  .expand-indicator {
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+  .node:hover .expand-indicator {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .node.expanded .expand-indicator {
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  .pulse {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .node-root .pulse::after {
+    content: '';
+    position: absolute;
+    top: -8px; left: -8px; right: -8px; bottom: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(139, 92, 246, 0.6);
+    animation: pulse 3s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    100% { transform: scale(1.25); opacity: 0; }
+  }
+
+  #tooltip {
+    position: fixed;
+    z-index: 200;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    max-width: 280px;
+    line-height: 1.55;
+    color: #e2e8f0;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  #tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #tooltip strong {
+    color: #a5b4fc;
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <button class="ctrl-btn" id="btn-expand">🔓 Expand All</button>
+  <button class="ctrl-btn" id="btn-collapse">🔒 Collapse All</button>
+  <button class="ctrl-btn" id="btn-reset">🎯 Reset View</button>
+  <button class="ctrl-btn" id="btn-zoom-in">➕ Zoom In</button>
+  <button class="ctrl-btn" id="btn-zoom-out">➖ Zoom Out</button>
+</div>
+
+<div id="legend">
+  <h4>🌐 AI World Legend</h4>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#6366f1,#ec4899)"></span>Core Domain</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#10b981,#06b6d4)"></span>Learning</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#f59e0b,#ef4444)"></span>Neural & Vision</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#3b82f6,#6366f1)"></span>Language</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#ec4899,#f43f5e)"></span>Generation</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#8b5cf6,#6366f1)"></span>Robotics</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#64748b,#475569)"></span>Applications</div>
+  <div class="legend-item"><span class="legend-dot" style="background:linear-gradient(135deg,#22c55e,#14b8a6)"></span>Ethics & Safety</div>
+</div>
+
+<div id="hint">
+  💡 Click nodes to expand • Scroll to zoom • Drag to pan • Hover for details
+</div>
+
+<div id="viewport">
+  <div id="canvas">
+    <svg id="edges" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="nodes"></div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+(() => {
+  const BRANCH_COLORS = {
+    root: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)',
+    ml:   'linear-gradient(135deg, #10b981 0%, #059669 50%, #06b6d4 100%)',
+    dl:   'linear-gradient(135deg, #f59e0b 0%, #ef4444 60%, #dc2626 100%)',
+    nlp:  'linear-gradient(135deg, #3b82f6 0%, #6366f1 60%, #8b5cf6 100%)',
+    cv:   'linear-gradient(135deg, #f97316 0%, #ef4444 60%, #f59e0b 100%)',
+    gen:  'linear-gradient(135deg, #ec4899 0%, #f43f5e 50%, #db2777 100%)',
+    rob:  'linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #7c3aed 100%)',
+    app:  'linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%)',
+    eth:  'linear-gradient(135deg, #22c55e 0%, #14b8a6 50%, #10b981 100%)',
+  };
+  const EDGE_COLORS = {
+    ml:   '#10b981',
+    dl:   '#f59e0b',
+    nlp:  '#3b82f6',
+    cv:   '#f97316',
+    gen:  '#ec4899',
+    rob:  '#8b5cf6',
+    app:  '#64748b',
+    eth:  '#22c55e',
+  };
+  const STROKE_COLORS = {
+    ml:   'rgba(16, 185, 129, 0.35)',
+    dl:   'rgba(245, 158, 11, 0.35)',
+    nlp:  'rgba(59, 130, 246, 0.35)',
+    cv:   'rgba(249, 115, 22, 0.35)',
+    gen:  'rgba(236, 72, 153, 0.35)',
+    rob:  'rgba(139, 92, 246, 0.35)',
+    app:  'rgba(100, 116, 139, 0.35)',
+    eth:  'rgba(34, 197, 94, 0.35)',
+  };
+
+  const TREE = {
+    id: 'root',
+    label: 'AI WORLD',
+    category: 'root',
+    kind: 'root',
+    desc: 'Artificial Intelligence: the quest to build machines that think, learn, and act intelligently across every domain of human endeavor.',
+    angle: 0,
+    radius: 0,
+    expanded: true,
+    children: [
+      {
+        id: 'ml', label: 'Machine Learning', category: 'ml', kind: 'branch',
+        desc: 'Systems that learn patterns from data instead of being explicitly programmed. The backbone of modern AI.',
+        children: [
+          { id:'ml-sup', label:'Supervised Learning', category:'ml', kind:'sub',
+            desc:'Trained on labeled data: classification (spam detection) and regression (house price prediction).',
+            children:[
+              { id:'ml-sup-lin', label:'Linear / Logistic Reg.', category:'ml', kind:'leaf', desc:'Foundational statistical models for regression and binary classification.' },
+              { id:'ml-sup-tree', label:'Decision Trees & RF', category:'ml', kind:'leaf', desc:'Tree-based ensembles: Random Forest, XGBoost, LightGBM — tabular data kings.' },
+              { id:'ml-sup-svm', label:'SVM & Kernel Methods', category:'ml', kind:'leaf', desc:'Max-margin classifiers powerful in high-dimensional feature spaces.' },
+              { id:'ml-sup-knn', label:'K-Nearest Neighbors', category:'ml', kind:'leaf', desc:'Instance-based lazy learning using proximity in feature space.' },
+            ]},
+          { id:'ml-unsup', label:'Unsupervised Learning', category:'ml', kind:'sub',
+            desc:'Finds hidden structure in unlabeled data: clusters, patterns, and compressed representations.',
+            children:[
+              { id:'ml-unsup-km', label:'K-Means / DBSCAN', category:'ml', kind:'leaf', desc:'Centroid-based and density-based clustering algorithms.' },
+              { id:'ml-unsup-hc', label:'Hierarchical Clust.', category:'ml', kind:'leaf', desc:'Builds tree-like dendrograms of nested clusters.' },
+              { id:'ml-unsup-pca', label:'PCA & Dimensionality', category:'ml', kind:'leaf', desc:'Principal Component Analysis, t-SNE, UMAP for visualization & compression.' },
+              { id:'ml-unsup-ap', label:'Apriori / FP-Growth', category:'ml', kind:'leaf', desc:'Frequent itemset mining and market basket association rules.' },
+            ]},
+          { id:'ml-rl', label:'Reinforcement Learning', category:'ml', kind:'sub',
+            desc:'Agents learn by trial-and-error, maximizing a reward signal through interaction with an environment.',
+            children:[
+              { id:'ml-rl-q', label:'Q-Learning / DQN', category:'ml', kind:'leaf', desc:'Value-based RL with deep Q-networks for Atari & beyond.' },
+              { id:'ml-rl-pg', label:'Policy Gradients / PPO', category:'ml', kind:'leaf', desc:'Direct policy optimization — Proximal Policy Optimization, the workhorse.' },
+              { id:'ml-rl-ac', label:'Actor-Critic / A3C', category:'ml', kind:'leaf', desc:'Combines value estimation (critic) with policy search (actor).' },
+              { id:'ml-rl-mcts', label:'MCTS & Planning', category:'ml', kind:'leaf', desc:'Monte Carlo Tree Search — powers AlphaZero and game-playing AI.' },
+            ]},
+          { id:'ml-ssl', label:'Semi-/Self-Supervised', category:'ml', kind:'sub',
+            desc:'Leverages huge unlabeled datasets with weak supervision — key to scaling modern foundation models.',
+            children:[
+              { id:'ml-ssl-ft', label:'Fine-Tuning & Transfer', category:'ml', kind:'leaf', desc:'Adapt pre-trained models with small labeled datasets.' },
+              { id:'ml-ssl-cl', label:'Contrastive Learning', category:'ml', kind:'leaf', desc:'SimCLR, CLIP-style representation learning via augmentations.' },
+            ]},
+        ]
+      },
+      {
+        id: 'dl', label: 'Deep Learning', category: 'dl', kind: 'branch',
+        desc: 'Neural networks with many layers. End-to-end differentiable models that learn hierarchical features.',
+        children: [
+          { id:'dl-ann', label:'Feedforward Networks', category:'dl', kind:'sub',
+            desc:'MLPs with stacked fully-connected layers — the basic building block.',
+            children:[
+              { id:'dl-ann-perc', label:'Perceptron / MLP', category:'dl', kind:'leaf', desc:'Multi-Layer Perceptrons, the original deep architecture.' },
+              { id:'dl-ann-act', label:'Activations & Norm', category:'dl', kind:'leaf', desc:'ReLU, GELU, Swish; BatchNorm, LayerNorm, RMSNorm.' },
+            ]},
+          { id:'dl-cnn', label:'Convolutional Nets', category:'dl', kind:'sub',
+            desc:'Spatial weight-sharing — revolutionized image understanding.',
+            children:[
+              { id:'dl-cnn-res', label:'ResNet / EfficientNet', category:'dl', kind:'leaf', desc:'Skip connections enabled training truly deep models.' },
+              { id:'dl-cnn-vit', label:'ViTs & Hybrid', category:'dl', kind:'leaf', desc:'Vision Transformers — attention beats convolutions at scale.' },
+              { id:'dl-cnn-unet', label:'U-Net & Segmentation', category:'dl', kind:'leaf', desc:'Encoder-decoder for medical imaging, masks, and dense prediction.' },
+            ]},
+          { id:'dl-rnn', label:'Recurrent Networks', category:'dl', kind:'sub',
+            desc:'Sequential processing with memory cells — predecessors of transformers.',
+            children:[
+              { id:'dl-rnn-lstm', label:'LSTM / GRU Cells', category:'dl', kind:'leaf', desc:'Gated recurrence for long-range dependencies in time series.' },
+              { id:'dl-rnn-seq', label:'Seq2seq & Attn.', category:'dl', kind:'leaf', desc:'Encoder-decoder with early attention; paved the road for transformers.' },
+            ]},
+          { id:'dl-tf', label:'Transformers', category:'dl', kind:'sub',
+            desc:'Self-attention — the architecture that changed everything (2017).',
+            children:[
+              { id:'dl-tf-attn', label:'Self-Attention / MHA', category:'dl', kind:'leaf', desc:'Multi-Head Attention lets every token see every other token.' },
+              { id:'dl-tf-pe', label:'Positional Encoding', category:'dl', kind:'leaf', desc:'Injects order into permutation-invariant attention.' },
+              { id:'dl-tf-moe', label:'MoE & Sparse Models', category:'dl', kind:'leaf', desc:'Mixture of Experts routes tokens to specialized subnetworks.' },
+            ]},
+          { id:'dl-opt', label:'Optimization', category:'dl', kind:'sub',
+            desc:'How billions of parameters get fit reliably.',
+            children:[
+              { id:'dl-opt-sgd', label:'SGD / Adam / AdamW', category:'dl', kind:'leaf', desc:'Workhorse optimizers and weight decay variants.' },
+              { id:'dl-opt-lora', label:'LoRA & PEFT', category:'dl', kind:'leaf', desc:'Parameter-Efficient Fine-Tuning — train less, get more.' },
+            ]},
+        ]
+      },
+      {
+        id: 'nlp', label: 'Natural Language', category: 'nlp', kind: 'branch',
+        desc: 'Teaching machines to read, write, and understand human language.',
+        children: [
+          { id:'nlp-llm', label:'Large Language Models', category:'nlp', kind:'sub',
+            desc:'Autoregressive transformers trained on massive text corpora.',
+            children:[
+              { id:'nlp-llm-gpt', label:'GPT / Claude / Gemini', category:'nlp', kind:'leaf', desc:'Frontier conversational and reasoning LLMs.' },
+              { id:'nlp-llm-oss', label:'Llama / Mistral', category:'nlp', kind:'leaf', desc:'Open-weight alternatives you can run and fine-tune.' },
+              { id:'nlp-llm-rlhf', label:'RLHF / DPO', category:'nlp', kind:'leaf', desc:'Aligning models with human preferences via RL or direct optimization.' },
+            ]},
+          { id:'nlp-task', label:'Core NLP Tasks', category:'nlp', kind:'sub',
+            desc:'The classic problem set of language AI.',
+            children:[
+              { id:'nlp-task-tc', label:'Classification & Sentiment', category:'nlp', kind:'leaf', desc:'Topic labeling, sentiment analysis, toxicity detection.' },
+              { id:'nlp-task-ner', label:'NER & Tagging', category:'nlp', kind:'leaf', desc:'Named Entity Recognition, POS tagging, chunking.' },
+              { id:'nlp-task-mt', label:'Machine Translation', category:'nlp', kind:'leaf', desc:'Seq2seq at scale — Google Translate and on-device models.' },
+              { id:'nlp-task-sum', label:'Summarization', category:'nlp', kind:'leaf', desc:'Abstractive and extractive text condensation.' },
+            ]},
+          { id:'nlp-rag', label:'RAG & Knowledge', category:'nlp', kind:'sub',
+            desc:'Retrieval Augmented Generation — grounded answers from real documents.',
+            children:[
+              { id:'nlp-rag-vec', label:'Vector DBs / Embeddings', category:'nlp', kind:'leaf', desc:'Pinecone, Weaviate, pgvector — semantic search at scale.' },
+              { id:'nlp-rag-chunk', label:'Chunking & Reranking', category:'nlp', kind:'leaf', desc:'Strategies to slice text and bubble up the best hits.' },
+            ]},
+          { id:'nlp-agent', label:'Agents & Tool Use', category:'nlp', kind:'sub',
+            desc:'LLMs that plan, call APIs, browse, and execute.',
+            children:[
+              { id:'nlp-agent-fn', label:'Function Calling', category:'nlp', kind:'leaf', desc:'Structured output + tool selection for LLMs.' },
+              { id:'nlp-agent-rea', label:'ReAct / Chain-of-Thought', category:'nlp', kind:'leaf', desc:'Reasoning traces that improve accuracy and debuggability.' },
+            ]},
+        ]
+      },
+      {
+        id: 'cv', label: 'Computer Vision', category: 'cv', kind: 'branch',
+        desc: 'Enabling machines to see, understand, and reconstruct the visual world.',
+        children: [
+          { id:'cv-rec', label:'Recognition', category:'cv', kind:'sub',
+            desc:'Classifying and labeling what is in an image.',
+            children:[
+              { id:'cv-rec-img', label:'Image Classification', category:'cv', kind:'leaf', desc:'ImageNet and beyond — what object is this?' },
+              { id:'cv-rec-det', label:'Object Detection', category:'cv', kind:'leaf', desc:'YOLO, DETR, Faster R-CNN — boxes around every object.' },
+            ]},
+          { id:'cv-dense', label:'Dense Prediction', category:'cv', kind:'sub',
+            desc:'Per-pixel understanding.',
+            children:[
+              { id:'cv-dense-seg', label:'Semantic Segmentation', category:'cv', kind:'leaf', desc:'Classify every pixel into a semantic category.' },
+              { id:'cv-dense-depth', label:'Depth Estimation', category:'cv', kind:'leaf', desc:'Predict a 2.5D depth map from a single RGB image.' },
+              { id:'cv-dense-pose', label:'Pose Estimation', category:'cv', kind:'leaf', desc:'Human keypoints, hand tracking, 3D body poses.' },
+            ]},
+          { id:'cv-3d', label:'3D & Reconstruction', category:'cv', kind:'sub',
+            desc:'Rebuilding the 3D world behind 2D pictures.',
+            children:[
+              { id:'cv-3d-slam', label:'SLAM / SfM', category:'cv', kind:'leaf', desc:'Simultaneous localization and 3D reconstruction from video.' },
+              { id:'cv-3d-nerf', label:'NeRF & 3DGS', category:'cv', kind:'leaf', desc:'Neural Radiance Fields and 3D Gaussian Splatting.' },
+            ]},
+          { id:'cv-face', label:'Face & Biometrics', category:'cv', kind:'sub',
+            desc:'Understanding identity and expression from faces.',
+            children:[
+              { id:'cv-face-id', label:'Face Recognition', category:'cv', kind:'leaf', desc:'ArcFace-style embeddings for verification & ID.' },
+              { id:'cv-face-land', label:'Landmarks & Emotion', category:'cv', kind:'leaf', desc:'Facial landmarks, expression, attention, and liveness.' },
+            ]},
+        ]
+      },
+      {
+        id: 'gen', label: 'Generative AI', category: 'gen', kind: 'branch',
+        desc: 'Models that create new content: text, images, audio, video, and code.',
+        children: [
+          { id:'gen-img', label:'Image Synthesis', category:'gen', kind:'sub',
+            desc:'From a text prompt to a stunning image.',
+            children:[
+              { id:'gen-img-diff', label:'Diffusion Models', category:'gen', kind:'leaf', desc:'Stable Diffusion, Flux — iterative denoising to images.' },
+              { id:'gen-img-gans', label:'GANs', category:'gen', kind:'leaf', desc:'Generative Adversarial Networks — realism through competition.' },
+              { id:'gen-img-ctrl', label:'ControlNet / LoRA', category:'gen', kind:'leaf', desc:'Geometry, style, and subject steering for diffusion.' },
+            ]},
+          { id:'gen-vid', label:'Video & Motion', category:'gen', kind:'sub',
+            desc:'Generating coherent, high-fidelity motion over time.',
+            children:[
+              { id:'gen-vid-sora', label:'Sora / Kling / Runway', category:'gen', kind:'leaf', desc:'Frontier video generation from text or image inputs.' },
+              { id:'gen-vid-anim', label:'Animation & MoCap', category:'gen', kind:'leaf', desc:'Character animation driven by text or sparse controls.' },
+            ]},
+          { id:'gen-audio', label:'Audio & Music', category:'gen', kind:'sub',
+            desc:'Speech, music, and sound generation.',
+            children:[
+              { id:'gen-audio-tts', label:'Text-to-Speech', category:'gen', kind:'leaf', desc:'ElevenLabs, Bark — ultra-realistic voice cloning & TTS.' },
+              { id:'gen-audio-music', label:'Music Gen', category:'gen', kind:'leaf', desc:'Suno, Udio, MusicGen — full songs from a description.' },
+              { id:'gen-audio-stt', label:'Speech Recognition', category:'gen', kind:'leaf', desc:'Whisper-style robust multilingual ASR.' },
+            ]},
+          { id:'gen-code', label:'Code Generation', category:'gen', kind:'sub',
+            desc:'Writing, fixing, and reasoning about source code.',
+            children:[
+              { id:'gen-code-llm', label:'Code LLMs', category:'gen', kind:'leaf', desc:'Codex, StarCoder, CodeLlama — programming assistants.' },
+              { id:'gen-code-syn', label:'Synthesis & Repair', category:'gen', kind:'leaf', desc:'Test-driven synthesis, automated bug fixing, refactors.' },
+            ]},
+        ]
+      },
+      {
+        id: 'rob', label: 'Robotics & Embodied', category: 'rob', kind: 'branch',
+        desc: 'Intelligent systems that act in the physical world — sensors, actuators, and brains.',
+        children: [
+          { id:'rob-mp', label:'Motion & Planning', category:'rob', kind:'sub',
+            desc:'How robots decide where and how to move.',
+            children:[
+              { id:'rob-mp-rrt', label:'RRT / A* Pathing', category:'rob', kind:'leaf', desc:'Sampling-based and graph-search planners.' },
+              { id:'rob-mp-mpc', label:'MPC & Control', category:'rob', kind:'leaf', desc:'Model Predictive Control for smooth, constrained motion.' },
+            ]},
+          { id:'rob-per', label:'Perception', category:'rob', kind:'sub',
+            desc:'Seeing, touching, and understanding the physical scene.',
+            children:[
+              { id:'rob-per-lidar', label:'LiDAR & Fusion', category:'rob', kind:'leaf', desc:'3D sensing and multi-modal sensor fusion.' },
+              { id:'rob-per-grasp', label:'Grasp Detection', category:'rob', kind:'leaf', desc:'Predicting contact-rich 6-DoF robot grasps in clutter.' },
+            ]},
+          { id:'rob-mr', label:'Manipulation', category:'rob', kind:'sub',
+            desc:'Making hands do useful work.',
+            children:[
+              { id:'rob-mr-pk', label:'Pick-and-Place', category:'rob', kind:'leaf', desc:'Factory and warehouse logistics automation.' },
+              { id:'rob-mr-dext', label:'Dexterous Hands', category:'rob', kind:'leaf', desc:'Multi-fingered in-hand manipulation with tactile sensing.' },
+            ]},
+          { id:'rob-hu', label:'Humanoids & Drones', category:'rob', kind:'sub',
+            desc:'Mobiles platforms that walk, fly, and collaborate.',
+            children:[
+              { id:'rob-hu-h', label:'Humanoid Robots', category:'rob', kind:'leaf', desc:'Atlas, Optimus, Unitree — bipedal mobility + manipulation.' },
+              { id:'rob-hu-d', label:'Drones & UAVs', category:'rob', kind:'leaf', desc:'Autonomous flight, swarms, delivery, and inspection.' },
+            ]},
+        ]
+      },
+      {
+        id: 'app', label: 'Applications', category: 'app', kind: 'branch',
+        desc: 'Where AI meets the real world — industries and daily life.',
+        children: [
+          { id:'app-hc', label:'Healthcare', category:'app', kind:'sub',
+            desc:'AI for clinicians, patients, and drug discovery.',
+            children:[
+              { id:'app-hc-rad', label:'Radiology & Diagnostics', category:'app', kind:'leaf', desc:'AI assistants reading X-rays, CT, MRI, pathology slides.' },
+              { id:'app-hc-drug', label:'Drug Discovery', category:'app', kind:'leaf', desc:'AlphaFold, molecular design, clinical trial optimization.' },
+              { id:'app-hc-ep', label:'EHR & Clinical NLP', category:'app', kind:'leaf', desc:'Extracting insights from electronic health records.' },
+            ]},
+          { id:'app-fin', label:'Finance', category:'app', kind:'sub',
+            desc:'Money, risk, and markets under AI.',
+            children:[
+              { id:'app-fin-fraud', label:'Fraud Detection', category:'app', kind:'leaf', desc:'Anomaly detection guarding every transaction.' },
+              { id:'app-fin-trade', label:'Algorithmic Trading', category:'app', kind:'leaf', desc:'Signal extraction, execution, portfolio optimization.' },
+              { id:'app-fin-risk', label:'Risk & Credit Scoring', category:'app', kind:'leaf', desc:'Fairer, more accurate underwriting and pricing.' },
+            ]},
+          { id:'app-auto', label:'Autonomous Vehicles', category:'app', kind:'sub',
+            desc:'Self-driving cars, trucks, and last-mile delivery.',
+            children:[
+              { id:'app-auto-l4', label:'L4 Driving Systems', category:'app', kind:'leaf', desc:'Waypoint-to-waypoint autonomy in constrained ODDs.' },
+              { id:'app-auto-adas', label:'ADAS Features', category:'app', kind:'leaf', desc:'Lane keep, adaptive cruise, parking assists today.' },
+            ]},
+          { id:'app-ent', label:'Entertainment', category:'app', kind:'sub',
+            desc:'Games, media, and creative tools.',
+            children:[
+              { id:'app-ent-game', label:'Game NPCs & AI', category:'app', kind:'leaf', desc:'Behavior trees, adversarial playtesting, level generation.' },
+              { id:'app-ent-rec', label:'Recommender Systems', category:'app', kind:'leaf', desc:'Feeds, ranking, collaborative filtering, two-towers.' },
+            ]},
+        ]
+      },
+      {
+        id: 'eth', label: 'Ethics & Safety', category: 'eth', kind: 'branch',
+        desc: 'Building AI that is fair, safe, robust, and beneficial to all.',
+        children: [
+          { id:'eth-fair', label:'Fairness & Bias', category:'eth', kind:'sub',
+            desc:'Measuring and mitigating disparate impacts.',
+            children:[
+              { id:'eth-fair-mit', label:'Bias Mitigation', category:'eth', kind:'leaf', desc:'Reweighing, adversarial debiasing, calibrated thresholds.' },
+              { id:'eth-fair-metric', label:'Fairness Metrics', category:'eth', kind:'leaf', desc:'Equalized odds, demographic parity, calibration.' },
+            ]},
+          { id:'eth-safety', label:'AI Safety', category:'eth', kind:'sub',
+            desc:'Keeping powerful systems reliably aligned with human intent.',
+            children:[
+              { id:'eth-safety-align', label:'Alignment Research', category:'eth', kind:'leaf', desc:'RLHF, Constitutional AI, scalable oversight.' },
+              { id:'eth-safety-evals', label:'Red-Teaming & Evals', category:'eth', kind:'leaf', desc:'Systematic evaluations for dangerous capabilities.' },
+              { id:'eth-safety-interp', label:'Interpretability', category:'eth', kind:'leaf', desc:'Mechanistic interpretability, probing, feature visualization.' },
+            ]},
+          { id:'eth-priv', label:'Privacy & Security', category:'eth', kind:'sub',
+            desc:'Training and deploying models without leaking secrets.',
+            children:[
+              { id:'eth-priv-dp', label:'Differential Privacy', category:'eth', kind:'leaf', desc:'Formal guarantees against memorizing individuals.' },
+              { id:'eth-priv-smpc', label:'FHE / Secure MPC', category:'eth', kind:'leaf', desc:'Encrypted inference and collaborative training.' },
+            ]},
+          { id:'eth-gov', label:'Governance & Policy', category:'eth', kind:'sub',
+            desc:'Laws, standards, and norms around AI.',
+            children:[
+              { id:'eth-gov-eu', label:'EU AI Act', category:'eth', kind:'leaf', desc:'Risk-tiered regulation for AI in the European Union.' },
+              { id:'eth-gov-cert', label:'Audits & Certifications', category:'eth', kind:'leaf', desc:'Third-party conformity assessments and impact reports.' },
+            ]},
+        ]
+      },
+    ]
+  };
+
+  const NODE_SIZE = {
+    root:   { w: 180, h: 180 },
+    branch: { w: 170, h: 72 },
+    sub:    { w: 155, h: 58 },
+    leaf:   { w: 140, h: 44 },
+  };
+  const LAYER_RADII_BASE = [0, 360, 720, 1120, 1580];
+  const NODE_GAP = 24;
+
+  const state = {
+    nodes: new Map(),
+    edges: [],
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    scale: 1,
+    minScale: 0.12,
+    maxScale: 2.5,
+    isDragging: false,
+    dragStart: null,
+    origX: 0, origY: 0,
+    animId: null,
+    layerRadii: LAYER_RADII_BASE.slice(),
+  };
+
+  const viewport = document.getElementById('viewport');
+  const canvas = document.getElementById('canvas');
+  const nodesLayer = document.getElementById('nodes');
+  const edgesLayer = document.getElementById('edges');
+  const tooltip = document.getElementById('tooltip');
+
+  function walk(node, fn, depth = 0) {
+    fn(node, depth);
+    if (node.children) node.children.forEach(c => walk(c, fn, depth + 1));
+  }
+
+  function nodeDim(node) { return NODE_SIZE[node.kind] || NODE_SIZE.leaf; }
+  function leafCount(node) {
+    if (!node.children || node.children.length === 0) return 1;
+    let n = 0; node.children.forEach(c => n += leafCount(c));
+    return Math.max(n, node.children.length);
+  }
+  function layerRadius(depth) {
+    if (depth < state.layerRadii.length) return state.layerRadii[depth];
+    let last = state.layerRadii[state.layerRadii.length - 1];
+    let prev = state.layerRadii[state.layerRadii.length - 2] || 0;
+    let dStep = last - prev;
+    let extras = depth - state.layerRadii.length + 1;
+    return last + extras * (dStep + 180);
+  }
+  function arcLengthForNodes(count, radius, dimW) {
+    return count * (dimW + NODE_GAP) + 2 * NODE_GAP;
+  }
+  function requiredAngularSpanForSibling(count, radius, dimW) {
+    const arc = arcLengthForNodes(count, radius, dimW);
+    if (radius <= 0) return (2 * Math.PI) * 0.1;
+    let span = arc / radius;
+    return Math.min(span, (2 * Math.PI) * 0.92);
+  }
+  function maxNodeDimWidthAtDepth(depth) {
+    let maxW = 0;
+    walk(TREE, (n, d) => { if (d === depth) maxW = Math.max(maxW, nodeDim(n).w); });
+    return maxW;
+  }
+  function computeLayerRadiiToAvoidCollision() {
+    const radii = LAYER_RADII_BASE.slice();
+    let changed = true; let iters = 0;
+    while (changed && iters < 12) {
+      changed = false; iters++;
+      const maxDepth = [];
+      walk(TREE, (n, d) => { if (!maxDepth[d]) maxDepth[d] = 0; });
+      const depths = Object.keys(maxDepth).map(Number).sort((a,b)=>a-b);
+      for (const depth of depths) {
+        if (depth === 0) continue;
+        const r = radii[depth] ?? (radii[radii.length - 1] + 500);
+        let nodeCountAtRadius = 0;
+        let maxW = 0;
+        walk(TREE, (n, d) => {
+          if (d === depth) { nodeCountAtRadius++; maxW = Math.max(maxW, nodeDim(n).w); }
+        });
+        if (nodeCountAtRadius <= 1) continue;
+        const neededSpan = requiredAngularSpanForSibling(nodeCountAtRadius, r, maxW);
+        if (neededSpan > 2 * Math.PI * 0.92) {
+          const requiredR = Math.ceil((nodeCountAtRadius * (maxW + NODE_GAP) + 2 * NODE_GAP) / (2 * Math.PI * 0.92));
+          radii[depth] = Math.max(r, requiredR + 40);
+          changed = true;
+        }
+      }
+      for (let i = 1; i < radii.length; i++) {
+        const prev = radii[i-1];
+        const minStep = i === 1 ? 360 : 380;
+        if (radii[i] < prev + minStep) { radii[i] = prev + minStep; changed = true; }
+      }
+    }
+    state.layerRadii = radii;
+  }
+  function placeAllNodes() {
+    const cx = 4000; const cy = 4000;
+    walk(TREE, (n, d) => { n._depth = d; n._childrenCount = n.children ? n.children.length : 0; });
+    TREE.angle = 0; TREE.radius = 0;
+    TREE._x = cx; TREE._y = cy;
+    TREE._parent = null;
+    const rootChildren = TREE.children || [];
+    const rootTotal = rootChildren.reduce((s, c) => s + Math.sqrt(leafCount(c)), 0);
+    const fullSpan = 2 * Math.PI * 0.995;
+    const gaps = (2 * Math.PI - fullSpan);
+    const gapPer = gaps / (rootChildren.length + 1);
+    let cursor = -Math.PI + gapPer;
+    rootChildren.forEach((ch, i) => {
+      const weight = Math.sqrt(leafCount(ch)) / rootTotal;
+      const mySpan = fullSpan * weight;
+      const centerA = cursor + mySpan / 2;
+      placeSubtree(ch, 1, centerA, mySpan * 0.92, TREE);
+      cursor += mySpan + gapPer;
+    });
+  }
+  function placeSubtree(node, depth, centerAngle, span, parent) {
+    node._parent = parent ? parent.id : null;
+    node._depth = depth;
+    node.angle = centerAngle;
+    const r = layerRadius(depth);
+    node.radius = r;
+    const cx = 4000; const cy = 4000;
+    node._x = cx + r * Math.cos(centerAngle);
+    node._y = cy + r * Math.sin(centerAngle);
+    if (!node.children || node.children.length === 0) return;
+    const kids = node.children;
+    const totalLeaves = kids.reduce((s, c) => s + Math.sqrt(leafCount(c)), 0);
+    const maxDim = Math.max(...kids.map(k => nodeDim(k).w));
+    const rNext = layerRadius(depth + 1);
+    const minSpanPerNode = (maxDim + NODE_GAP * 1.5) / Math.max(1, rNext) * kids.length;
+    const useSpan = Math.max(span, minSpanPerNode);
+    const effectiveSpan = Math.min(useSpan, (2 * Math.PI) * 0.9);
+    let cursor = centerAngle - effectiveSpan / 2;
+    kids.forEach((c, i) => {
+      const w = Math.sqrt(leafCount(c)) / totalLeaves;
+      const childSpan = effectiveSpan * (kids.length === 1 ? 0.75 : w);
+      const childCenter = cursor + childSpan / 2;
+      placeSubtree(c, depth + 1, childCenter, childSpan * 0.9, node);
+      cursor += childSpan;
+    });
+  }
+  function overlapsAtDepth(d) {
+    const byDepth = new Map();
+    walk(TREE, (n, dd) => { if (!byDepth.has(dd)) byDepth.set(dd, []); byDepth.get(dd).push(n); });
+    const list = byDepth.get(d);
+    if (!list) return 0;
+    let count = 0;
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const dimA = nodeDim(a), dimB = nodeDim(b);
+        const aW = Math.max(dimA.w, dimA.h);
+        const bW = Math.max(dimB.w, dimB.h);
+        const dx = a._x - b._x, dy = a._y - b._y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const minDist = (aW + bW) / 2 + NODE_GAP;
+        if (dist < minDist) count++;
+      }
+    }
+    return count;
+  }
+  function fixOverlapsExpandRadius() {
+    const cx = 4000, cy = 4000;
+    const byDepth = new Map();
+    walk(TREE, (n, d) => { if (!byDepth.has(d)) byDepth.set(d, []); byDepth.get(d).push(n); });
+    for (let pass = 0; pass < 6; pass++) {
+      let anyExpanded = false;
+      const depths = [...byDepth.keys()].sort((a,b)=>b-a);
+      for (const d of depths) {
+        if (d === 0) continue;
+        const list = byDepth.get(d);
+        if (list.length < 2) continue;
+        const maxDim = Math.max(...list.map(n => Math.max(nodeDim(n).w, nodeDim(n).h)));
+        const circumferenceNeed = list.length * (maxDim + NODE_GAP * 1.8);
+        const requiredR = Math.ceil(circumferenceNeed / (2 * Math.PI * 0.95));
+        const curR = state.layerRadii[d] ?? (state.layerRadii[state.layerRadii.length - 1] + 500);
+        if (curR < requiredR) {
+          state.layerRadii[d] = requiredR + 20;
+          if (d >= state.layerRadii.length) {
+            while (state.layerRadii.length < d) state.layerRadii.push(state.layerRadii[state.layerRadii.length-1] + 500);
+            state.layerRadii.push(requiredR + 20);
+          }
+          anyExpanded = true;
+        }
+      }
+      for (let i = 1; i < state.layerRadii.length; i++) {
+        const prev = state.layerRadii[i-1];
+        const minStep = i === 1 ? 360 : 320;
+        if (state.layerRadii[i] < prev + minStep) {
+          state.layerRadii[i] = prev + minStep;
+          anyExpanded = true;
+        }
+      }
+      if (anyExpanded) {
+        placeAllNodes();
+      }
+      let totalOverlaps = 0;
+      for (const d of byDepth.keys()) totalOverlaps += overlapsAtDepth(d);
+      if (totalOverlaps === 0) return true;
+    }
+    for (const [d, list] of byDepth.entries()) {
+      if (d === 0) continue;
+      let r = layerRadius(d);
+      list.sort((a, b) => a.angle - b.angle);
+      let tryMore = 0;
+      while (tryMore < 30) {
+        let changed = false;
+        for (let i = 0; i < list.length; i++) {
+          const a = list[i], b = list[(i + 1) % list.length];
+          const dimA = nodeDim(a), dimB = nodeDim(b);
+          const aW = Math.max(dimA.w, dimA.h);
+          const bW = Math.max(dimB.w, dimB.h);
+          const dx = a._x - b._x, dy = a._y - b._y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          const minDist = (aW + bW) / 2 + NODE_GAP;
+          if (dist < minDist * 0.99) {
+            const angDiff = ((b.angle - a.angle + 3*Math.PI) % (2*Math.PI)) - Math.PI;
+            const push = 0.015 * (tryMore + 1);
+            if (angDiff >= 0) { b.angle += push; a.angle -= push; }
+            else { a.angle += push; b.angle -= push; }
+            a._x = cx + r * Math.cos(a.angle); a._y = cy + r * Math.sin(a.angle);
+            b._x = cx + r * Math.cos(b.angle); b._y = cy + r * Math.sin(b.angle);
+            changed = true;
+          }
+        }
+        if (!changed) break;
+        tryMore++;
+      }
+      const remainingOver = overlapsAtDepth(d);
+      if (remainingOver > 0) {
+        state.layerRadii[d] = r + 160;
+        for (const n of list) {
+          n.radius = state.layerRadii[d];
+          n._x = cx + state.layerRadii[d] * Math.cos(n.angle);
+          n._y = cy + state.layerRadii[d] * Math.sin(n.angle);
+        }
+      }
+    }
+  }
+
+  function layoutDepthFreelyByRadius() {
+    const cx = 4000, cy = 4000;
+    const byDepth = new Map();
+    walk(TREE, (n, d) => { if (!byDepth.has(d)) byDepth.set(d, []); byDepth.get(d).push(n); });
+    const maxDepth = Math.max(...byDepth.keys());
+    for (let d = maxDepth; d >= 2; d--) {
+      const list = byDepth.get(d);
+      if (!list || list.length < 2) continue;
+      list.sort((a, b) => a.angle - b.angle);
+      const maxW = Math.max(...list.map(n => Math.max(nodeDim(n).w, nodeDim(n).h)));
+      const circ = list.length * (maxW + NODE_GAP * 2) + 2 * NODE_GAP;
+      const needR = Math.ceil(circ / (2 * Math.PI * 0.97));
+      const curR = layerRadius(d);
+      const r = Math.max(curR, needR + 30);
+      if (r > curR) {
+        if (d >= state.layerRadii.length) {
+          while (state.layerRadii.length <= d) state.layerRadii.push(state.layerRadii[state.layerRadii.length-1] + 500);
+        }
+        state.layerRadii[d] = r;
+      }
+      const step = (2 * Math.PI) / list.length;
+      list.forEach((n, i) => {
+        const ang = -Math.PI / 2 + i * step;
+        n.angle = ang;
+        n.radius = r;
+        n._x = cx + r * Math.cos(ang);
+        n._y = cy + r * Math.sin(ang);
+      });
+    }
+  }
+  function springRelaxByDepth() {
+    const cx = 4000, cy = 4000;
+    const byDepth = new Map();
+    walk(TREE, (n, d) => { if (!byDepth.has(d)) byDepth.set(d, []); byDepth.get(d).push(n); });
+    for (const [d, list] of byDepth.entries()) {
+      if (d < 2) continue;
+      list.sort((a, b) => a.angle - b.angle);
+      for (let pass = 0; pass < 30; pass++) {
+        let cols = 0;
+        for (let i = 0; i < list.length; i++) {
+          const a = list[i];
+          const b = list[(i + 1) % list.length];
+          const dimA = nodeDim(a), dimB = nodeDim(b);
+          const aW = Math.max(dimA.w, dimA.h);
+          const bW = Math.max(dimB.w, dimB.h);
+          const minDist = (aW + bW) / 2 + NODE_GAP;
+          const dx = a._x - b._x, dy = a._y - b._y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < minDist) {
+            cols++;
+            const push = 0.008 + (0.0015 * pass);
+            const r = a.radius;
+            const angDiff = ((b.angle - a.angle + 3*Math.PI) % (2*Math.PI)) - Math.PI;
+            if (angDiff >= 0) { b.angle += push; a.angle -= push; }
+            else { a.angle += push; b.angle -= push; }
+            a._x = cx + r * Math.cos(a.angle); a._y = cy + r * Math.sin(a.angle);
+            b._x = cx + r * Math.cos(b.angle); b._y = cy + r * Math.sin(b.angle);
+          }
+        }
+        if (cols === 0) break;
+        if (pass === 29 && cols > 0) {
+          state.layerRadii[d] = (state.layerRadii[d] || layerRadius(d)) + 200;
+          const r = state.layerRadii[d];
+          for (const n of list) {
+            n.radius = r;
+            n._x = cx + r * Math.cos(n.angle);
+            n._y = cy + r * Math.sin(n.angle);
+          }
+        }
+      }
+    }
+  }
+  function build() {
+    state.layerRadii = LAYER_RADII_BASE.slice();
+    computeLayerRadiiToAvoidCollision();
+    placeAllNodes();
+    layoutDepthFreelyByRadius();
+    springRelaxByDepth();
+
+    const created = [];
+    const edgesToCreate = [];
+    walk(TREE, (n, depth) => {
+      const isRoot = depth === 0;
+      const isVisible = isRoot || (depth === 1) || (getAncestorVisibility(n));
+      const cat = n.category;
+      const el = document.createElement('div');
+      el.className = 'node node-' + n.kind + (isVisible ? '' : ' entering');
+      el.dataset.id = n.id;
+      el.style.zIndex = (100 - depth);
+      el.style.left = n._x + 'px';
+      el.style.top = n._y + 'px';
+      el.style.display = isVisible ? '' : 'none';
+      if (!isVisible) el.classList.add('entering');
+
+      const inner = document.createElement('div');
+      inner.className = 'node-inner';
+      inner.style.background = BRANCH_COLORS[cat] || BRANCH_COLORS.root;
+      inner.style.borderColor = STROKE_COLORS[cat] || 'rgba(255,255,255,0.25)';
+      if (isRoot) {
+        const pulse = document.createElement('div');
+        pulse.className = 'pulse';
+        inner.appendChild(pulse);
+      }
+      const label = document.createElement('span');
+      label.textContent = n.label;
+      label.style.position = 'relative';
+      label.style.zIndex = '1';
+      inner.appendChild(label);
+
+      if (n._childrenCount > 0) {
+        const ind = document.createElement('div');
+        ind.className = 'expand-indicator';
+        ind.textContent = '+';
+        inner.appendChild(ind);
+      }
+
+      el.appendChild(inner);
+      nodesLayer.appendChild(el);
+
+      n._el = el;
+      n._expanded = isRoot || depth === 1;
+      if (n._expanded) el.classList.add('expanded');
+      state.nodes.set(n.id, n);
+      created.push(el);
+
+      if (!isRoot) {
+        const parent = state.nodes.get(n._parent);
+        if (parent) {
+          edgesToCreate.push({ from: parent, to: n });
+        }
+      }
+    });
+
+    edgesToCreate.forEach(e => createEdge(e.from, e.to));
+    setTimeout(() => {
+      document.querySelectorAll('.node').forEach(n => n.classList.remove('entering'));
+    }, 50);
+  }
+
+  function getAncestorVisibility(node) {
+    let p = node._parent;
+    let cur = state.nodes.get(p);
+    while (cur) {
+      if (!cur._expanded) return false;
+      p = cur._parent;
+      cur = p ? state.nodes.get(p) : null;
+    }
+    return true;
+  }
+
+  function createEdge(from, to) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'edge');
+    path.setAttribute('stroke', EDGE_COLORS[to.category] || EDGE_COLORS[from.category] || '#6366f1');
+    path.dataset.from = from.id;
+    path.dataset.to = to.id;
+    const d = cubicBezierD(from._x, from._y, to._x, to._y);
+    path.setAttribute('d', d);
+    edgesLayer.appendChild(path);
+    state.edges.push({ from: from.id, to: to.id, el: path });
+  }
+
+  function cubicBezierD(x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const cx1 = x1 + dx * 0.5;
+    const cy1 = y1;
+    const cx2 = x2 - dx * 0.5;
+    const cy2 = y2;
+    return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+  }
+
+  const HANDLE_WEAKMAP = new WeakMap();
+  const CANCELED_TIMERS = new Set();
+  let __timersSeq = 0;
+  const _origSetTimeout = window.setTimeout.bind(window);
+  const _origClearTimeout = window.clearTimeout.bind(window);
+  function safeTimeout(fn, delay, ...rest) {
+    const id = _origSetTimeout(function(...args) {
+      if (CANCELED_TIMERS.has(id)) { CANCELED_TIMERS.delete(id); return; }
+      try { return fn.apply(this, args); } finally { CANCELED_TIMERS.delete(id); }
+    }, delay, ...rest);
+    return id;
+  }
+  function safeClearTimeout(id) {
+    if (id == null) return;
+    CANCELED_TIMERS.add(id);
+    _origClearTimeout(id);
+  }
+
+  function readHandles(el) {
+    let h = HANDLE_WEAKMAP.get(el);
+    if (!h) { h = { hideTimer: null, enterRaf: null, seq: ++__timersSeq }; HANDLE_WEAKMAP.set(el, h); }
+    return h;
+  }
+  function clearHandles(el) {
+    const h = HANDLE_WEAKMAP.get(el);
+    if (!h) return;
+    if (h.hideTimer) { safeClearTimeout(h.hideTimer); h.hideTimer = null; }
+    if (h.enterRaf) { cancelAnimationFrame(h.enterRaf); h.enterRaf = null; }
+    h.seq = ++__timersSeq;
+  }
+  const RECONCILE_TIMERS = [];
+  function scheduleReconcile() {
+    while (RECONCILE_TIMERS.length) safeClearTimeout(RECONCILE_TIMERS.pop());
+    const delays = [250, 550, 850];
+    delays.forEach((d, idx) => {
+      const t = safeTimeout(() => {
+        RECONCILE_TIMERS[idx] = null;
+        reconcileAll();
+      }, d);
+      RECONCILE_TIMERS.push(t);
+    });
+  }
+  function reconcileAll() {
+    state.nodes.forEach(n => {
+      const el = n._el;
+      if (!el) return;
+      const shouldBeVisible = nodeIsVisible(n);
+      if (shouldBeVisible) {
+        if (el.style.display === 'none') el.style.display = '';
+        if (el.classList.contains('exiting')) el.classList.remove('exiting');
+        if (el.style.opacity) el.style.opacity = '';
+      } else {
+        if (el.style.display !== 'none') {
+          el.classList.remove('exiting');
+          el.style.display = 'none';
+        }
+      }
+      if (n._expanded && !el.classList.contains('expanded')) el.classList.add('expanded');
+      else if (!n._expanded && el.classList.contains('expanded')) el.classList.remove('expanded');
+    });
+    state.edges.forEach(e => {
+      const toNode = state.nodes.get(e.to);
+      const shouldBeVisible = toNode ? nodeIsVisible(toNode) : false;
+      if (shouldBeVisible) e.el.classList.add('visible'); else e.el.classList.remove('visible');
+    });
+  }
+  function nodeIsVisible(n) {
+    if (n.id === TREE.id) return true;
+    let p = state.nodes.get(n._parent);
+    while (p) {
+      if (!p._expanded) return false;
+      p = state.nodes.get(p._parent);
+    }
+    return true;
+  }
+  function updateVisibility() {
+    state.nodes.forEach(n => {
+      const visible = nodeIsVisible(n);
+      const el = n._el;
+      if (!el) return;
+      clearHandles(el);
+      const h = readHandles(el);
+      const mySeq = h.seq;
+      if (visible) {
+        const wasHidden = el.style.display === 'none';
+        const wasExiting = el.classList.contains('exiting');
+        if (wasHidden || wasExiting) {
+          el.classList.remove('exiting');
+          el.style.display = '';
+          el.style.opacity = '';
+          if (wasHidden || !wasExiting) {
+            el.classList.add('entering');
+            h.enterRaf = requestAnimationFrame(() => {
+              const now = readHandles(el);
+              if (now.seq !== mySeq) return;
+              if (el.parentNode && el.classList.contains('entering')) el.classList.remove('entering');
+              now.enterRaf = null;
+            });
+          }
+        }
+      } else {
+        if (el.style.display !== 'none' && !el.classList.contains('exiting')) {
+          el.classList.remove('entering');
+          el.classList.add('exiting');
+          h.hideTimer = safeTimeout(() => {
+            const now = readHandles(el);
+            if (now.seq !== mySeq) return;
+            now.hideTimer = null;
+            const cur = state.nodes.get(n.id);
+            if (!cur || !nodeIsVisible(cur)) {
+              el.style.display = 'none';
+              el.classList.remove('exiting');
+              el.style.opacity = '';
+            }
+          }, 320);
+        }
+      }
+      if (n._expanded) el.classList.add('expanded'); else el.classList.remove('expanded');
+    });
+
+    queueMicrotask(() => { reconcileAll(); });
+    state.edges.forEach(e => {
+      const toNode = state.nodes.get(e.to);
+      const visible = toNode ? nodeIsVisible(toNode) : false;
+      if (visible) e.el.classList.add('visible'); else e.el.classList.remove('visible');
+    });
+    scheduleReconcile();
+  }
+
+  nodesLayer.addEventListener('click', (ev) => {
+    const el = ev.target.closest('.node');
+    if (!el) return;
+    const id = el.dataset.id;
+    const node = state.nodes.get(id);
+    if (!node || !node._childrenCount) return;
+    node._expanded = !node._expanded;
+    updateVisibility();
+    ev.stopPropagation();
+  });
+
+  nodesLayer.addEventListener('mouseover', (ev) => {
+    const el = ev.target.closest('.node');
+    if (!el) return;
+    const id = el.dataset.id;
+    const node = state.nodes.get(id);
+    if (!node) return;
+    tooltip.innerHTML = `<strong>${node.label}</strong>${node.desc || ''}`;
+    tooltip.classList.add('visible');
+
+    state.edges.forEach(e => {
+      if (e.from === id || e.to === id) e.el.classList.add('hovered');
+    });
+  });
+  nodesLayer.addEventListener('mousemove', (ev) => {
+    const pad = 16;
+    let x = ev.clientX + pad;
+    let y = ev.clientY + pad;
+    const w = tooltip.offsetWidth;
+    const h = tooltip.offsetHeight;
+    if (x + w > window.innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = ev.clientY - h - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  });
+  nodesLayer.addEventListener('mouseout', (ev) => {
+    const el = ev.target.closest('.node');
+    if (!el) return;
+    tooltip.classList.remove('visible');
+    state.edges.forEach(e => e.el.classList.remove('hovered'));
+  });
+
+  function applyTransform() {
+    canvas.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+  }
+
+  function getMaxRadius() {
+    let maxR = 0;
+    walk(TREE, (n) => { if (n.radius > maxR) maxR = n.radius; });
+    const deepestNodePad = NODE_SIZE.leaf ? Math.max(NODE_SIZE.leaf.w, NODE_SIZE.leaf.h) : 150;
+    return maxR + deepestNodePad * 0.8;
+  }
+  function centerOnRoot() {
+    const rect = viewport.getBoundingClientRect();
+    const fit = getMaxRadius() * 2 + 200;
+    state.scale = Math.min(rect.width / fit, rect.height / fit, 1);
+    state.x = rect.width / 2 - 4000 * state.scale;
+    state.y = rect.height / 2 - 4000 * state.scale;
+    applyTransform();
+  }
+
+  viewport.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.node')) return;
+    state.isDragging = true;
+    viewport.classList.add('dragging');
+    state.dragStart = { x: e.clientX, y: e.clientY };
+    state.origX = state.x; state.origY = state.y;
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener('pointermove', (e) => {
+    if (!state.isDragging || !state.dragStart) return;
+    state.x = state.origX + (e.clientX - state.dragStart.x);
+    state.y = state.origY + (e.clientY - state.dragStart.y);
+    applyTransform();
+  });
+  viewport.addEventListener('pointerup', (e) => {
+    state.isDragging = false;
+    viewport.classList.remove('dragging');
+    state.dragStart = null;
+    try { viewport.releasePointerCapture(e.pointerId); } catch(_) {}
+  });
+  viewport.addEventListener('pointercancel', () => {
+    state.isDragging = false;
+    viewport.classList.remove('dragging');
+    state.dragStart = null;
+  });
+
+  viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const delta = -e.deltaY;
+    const factor = Math.exp(delta * 0.0015);
+    const newScale = Math.min(state.maxScale, Math.max(state.minScale, state.scale * factor));
+    const realFactor = newScale / state.scale;
+    state.x = mx - (mx - state.x) * realFactor;
+    state.y = my - (my - state.y) * realFactor;
+    state.scale = newScale;
+    applyTransform();
+  }, { passive: false });
+
+  document.getElementById('btn-reset').addEventListener('click', () => centerOnRoot());
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    const rect = viewport.getBoundingClientRect();
+    const cx = rect.width/2, cy = rect.height/2;
+    const ns = Math.min(state.maxScale, state.scale * 1.25);
+    const f = ns / state.scale;
+    state.x = cx - (cx - state.x) * f;
+    state.y = cy - (cy - state.y) * f;
+    state.scale = ns; applyTransform();
+  });
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    const rect = viewport.getBoundingClientRect();
+    const cx = rect.width/2, cy = rect.height/2;
+    const ns = Math.max(state.minScale, state.scale / 1.25);
+    const f = ns / state.scale;
+    state.x = cx - (cx - state.x) * f;
+    state.y = cy - (cy - state.y) * f;
+    state.scale = ns; applyTransform();
+  });
+  document.getElementById('btn-expand').addEventListener('click', () => {
+    state.nodes.forEach(n => { if (n._childrenCount) n._expanded = true; });
+    updateVisibility();
+  });
+  document.getElementById('btn-collapse').addEventListener('click', () => {
+    state.nodes.forEach(n => { if (n.id !== TREE.id) n._expanded = (n._depth === 1); });
+    updateVisibility();
+  });
+
+  window.addEventListener('resize', () => {
+    const rect = viewport.getBoundingClientRect();
+    if (state.scale * 8000 < Math.max(rect.width, rect.height)) centerOnRoot();
+  });
+
+  build();
+  updateVisibility();
+  requestAnimationFrame(centerOnRoot);
+})();
+</script>
+</body>
+</html>

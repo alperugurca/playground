@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHRONO // Universal Time Problem Solver</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f0ea; --card: #ffffff; --text: #111111; --muted: #666666;
+      --accent: #ff5c00; --accent-fg: #ffffff; --border: #111111;
+      --shadow: 4px 4px 0px #111111; --radius: 12px;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', sans-serif; transition: background 0.25s, color 0.25s;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .neo-card {
+      background: var(--card); border: 2px solid var(--border);
+      box-shadow: var(--shadow); border-radius: var(--radius);
+      transition: all 0.2s ease;
+    }
+    .neo-btn {
+      background: var(--card); color: var(--text); border: 2px solid var(--border);
+      box-shadow: 2px 2px 0px var(--border); border-radius: calc(var(--radius) * 0.6);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .neo-btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border); }
+    .neo-accent { background: var(--accent); color: var(--accent-fg); }
+    input[type="range"] { accent-color: var(--accent); }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <header class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div>
+      <div class="inline-block px-2 py-0.5 text-xs font-bold uppercase tracking-widest neo-accent border-2 border-[var(--border)] mb-1">Universal Time Solver</div>
+      <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight">CHRONO<span class="opacity-40">.GRID</span></h1>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="liveBtn" class="neo-btn neo-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wider">● Live Now</button>
+      <button id="bestSlotBtn" class="neo-btn px-3 py-1.5 text-xs font-bold uppercase tracking-wider" title="Jump to best work-hour overlap">⚡ Best Overlap</button>
+      <button id="copyBtn" class="neo-btn px-3 py-1.5 text-xs font-bold uppercase tracking-wider">📋 Copy Summary</button>
+      <button id="themeBtn" class="neo-btn px-3 py-1.5 text-xs font-bold uppercase tracking-wider">🎲 Random Design</button>
+    </div>
+  </header>
+
+  <!-- Universal Scrubber & Timestamp Bar -->
+  <section class="neo-card p-4 md:p-5 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center mb-4">
+      <div>
+        <label for="dtInput" class="block text-xs font-bold uppercase opacity-70 mb-1">Anchor Date & Time (Local)</label>
+        <input id="dtInput" type="datetime-local" class="w-full neo-btn px-3 py-2 text-sm mono font-semibold bg-transparent focus:outline-none" />
+      </div>
+      <div>
+        <label for="unixInput" class="block text-xs font-bold uppercase opacity-70 mb-1">Unix Epoch (Sec / MS)</label>
+        <input id="unixInput" type="number" placeholder="e.g. 1792159000" class="w-full neo-btn px-3 py-2 text-sm mono font-semibold bg-transparent focus:outline-none" />
+      </div>
+      <div>
+        <span class="block text-xs font-bold uppercase opacity-70 mb-1">UTC / ISO-8601 Reference</span>
+        <div id="isoDisplay" class="neo-btn px-3 py-2 text-sm mono font-bold truncate select-all"></div>
+      </div>
+    </div>
+
+    <div class="pt-2 border-t border-current/15">
+      <div class="flex justify-between items-center text-xs font-bold uppercase mb-1">
+        <span>Time Travel Scrubber (24h Offset)</span>
+        <span id="offsetLabel" class="mono neo-accent px-2 py-0.5 rounded text-xs">0h 00m</span>
+      </div>
+      <input id="scrubber" type="range" min="-720" max="720" step="15" value="0" class="w-full h-2 cursor-pointer" />
+      <div class="flex justify-between text-[11px] mono opacity-60 mt-1">
+        <span>-12h</span><span>-6h</span><span>Anchor</span><span>+6h</span><span>+12h</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Add Timezone Bar -->
+  <section class="flex flex-wrap items-center justify-between gap-2 mb-4">
+    <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+      <select id="tzSelect" aria-label="Select timezone to add" class="neo-btn px-3 py-2 text-sm font-semibold flex-1 bg-transparent focus:outline-none"></select>
+      <button id="addTzBtn" class="neo-btn neo-accent px-4 py-2 text-sm font-bold">+ Add Zone</button>
+    </div>
+    <div id="overlapScore" class="text-xs font-bold mono px-3 py-2 neo-card"></div>
+  </section>
+
+  <!-- World Zones Grid -->
+  <main id="zonesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></main>
+
+  <!-- Toast notification -->
+  <div id="toast" class="fixed bottom-4 right-4 neo-card neo-accent px-4 py-2 text-xs font-bold uppercase tracking-wider opacity-0 pointer-events-none transition-opacity duration-200">Copied to clipboard!</div>
+
+  <script>
+    const THEMES = [
+      { name: 'Swiss Brutal', bg: '#f4f0ea', card: '#ffffff', text: '#111111', accent: '#ff5c00', fg: '#ffffff', border: '#111111', shadow: '4px 4px 0px #111111', r: '10px' },
+      { name: 'Cyber Terminal', bg: '#0a0f0d', card: '#111a16', text: '#00ff9d', accent: '#00ff9d', fg: '#05100a', border: '#00ff9d', shadow: '0px 0px 12px rgba(0,255,157,0.25)', r: '4px' },
+      { name: 'Tokyo Pop', bg: '#fff0f6', card: '#ffffff', text: '#1e1b4b', accent: '#ec4899', fg: '#ffffff', border: '#1e1b4b', shadow: '5px 5px 0px #ec4899', r: '18px' },
+      { name: 'Blueprint', bg: '#0f2942', card: '#163859', text: '#e0f2fe', accent: '#38bdf8', fg: '#082f49', border: '#7dd3fc', shadow: '3px 3px 0px #38bdf8', r: '2px' },
+      { name: 'Solar Minimal', bg: '#fefce8', card: '#ffffff', text: '#27272a', accent: '#eab308', fg: '#18181b', border: '#27272a', shadow: '0px 6px 16px rgba(0,0,0,0.08)', r: '16px' },
+      { name: 'Nordic Slate', bg: '#18181b', card: '#27272a', text: '#f4f4f5', accent: '#a855f7', fg: '#ffffff', border: '#52525b', shadow: '4px 4px 0px #a855f7', r: '12px' }
+    ];
+
+    const DEFAULT_ZONES = ['UTC', 'Europe/Istanbul', 'America/New_York', 'Europe/London', 'Asia/Tokyo', 'America/Los_Angeles'];
+    let zones = [...DEFAULT_ZONES];
+    try {
+      const saved = JSON.parse(localStorage.getItem('chrono_zones'));
+      if (Array.isArray(saved) && saved.length) zones = saved;
+    } catch (e) {}
+
+    let anchorMs = Date.now();
+    let offsetMin = 0;
+    let isLive = true;
+    let themeIdx = 0;
+
+    const el = id => document.getElementById(id);
+    const saveZones = () => { try { localStorage.setItem('chrono_zones', JSON.stringify(zones)); } catch (e) {} };
+    const showToast = msg => {
+      const t = el('toast');
+      t.textContent = msg;
+      t.classList.remove('opacity-0');
+      setTimeout(() => t.classList.add('opacity-0'), 1800);
+    };
+
+    function applyTheme(idx) {
+      const t = THEMES[idx % THEMES.length];
+      const r = document.documentElement.style;
+      r.setProperty('--bg', t.bg); r.setProperty('--card', t.card);
+      r.setProperty('--text', t.text); r.setProperty('--accent', t.accent);
+      r.setProperty('--accent-fg', t.fg); r.setProperty('--border', t.border);
+      r.setProperty('--shadow', t.shadow); r.setProperty('--radius', t.r);
+      showToast(`Design: ${t.name}`);
+    }
+
+    function populateTimezones() {
+      const list = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : DEFAULT_ZONES);
+      const all = Array.from(new Set(['UTC', ...DEFAULT_ZONES, ...list]));
+      el('tzSelect').innerHTML = all.map(z => `<option value="${z}">${z.replace(/_/g, ' ')}</option>`).join('');
+      el('tzSelect').value = 'Europe/Berlin';
+    }
+
+    function getZoneInfo(tz, ms) {
+      const d = new Date(ms);
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short', timeZoneName: 'shortOffset'
+      }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+      const hr = parseInt(parts.hour, 10) % 24;
+      const status = (hr >= 9 && hr < 18) ? { label: 'Work 🏢', ok: 2 } : (hr >= 7 && hr < 22) ? { label: 'Awake 🌆', ok: 1 } : { label: 'Sleep 🌙', ok: 0 };
+      return { tz, time: `${parts.hour}:${parts.minute}:${parts.second}`, date: `${parts.weekday}, ${parts.year}-${parts.month}-${parts.day}`, offset: parts.timeZoneName || 'UTC', hr, status };
+    }
+
+    function render() {
+      const activeMs = anchorMs + offsetMin * 60000;
+      const d = new Date(activeMs);
+
+      // Update inputs if not focused
+      if (document.activeElement !== el('unixInput')) el('unixInput').value = Math.floor(activeMs / 1000);
+      if (document.activeElement !== el('dtInput')) {
+        const localIso = new Date(activeMs - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        el('dtInput').value = localIso;
+      }
+      el('isoDisplay').textContent = d.toISOString();
+
+      const sign = offsetMin > 0 ? '+' : '';
+      el('offsetLabel').textContent = offsetMin === 0 ? ' Anchor (0m)' : `${sign}${Math.floor(offsetMin / 60)}h ${Math.abs(offsetMin % 60)}m`;
+      el('liveBtn').className = `neo-btn px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${isLive && offsetMin === 0 ? 'neo-accent' : ''}`;
+
+      const infos = zones.map(z => getZoneInfo(z, activeMs));
+      const workCount = infos.filter(i => i.status.ok === 2).length;
+      const awakeCount = infos.filter(i => i.status.ok >= 1).length;
+      el('overlapScore').textContent = `Overlap: ${workCount}/${infos.length} Working · ${awakeCount}/${infos.length} Awake`;
+
+      el('zonesGrid').innerHTML = infos.map(info => `
+        <article class="neo-card p-4 flex flex-col justify-between">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <span class="text-[11px] mono font-bold opacity-60">${info.offset}</span>
+              <h2 class="font-extrabold text-base leading-tight">${info.tz.split('/').pop().replace(/_/g, ' ')}</h2>
+              <p class="text-[11px] opacity-60">${info.tz}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded border border-current/20">${info.status.label}</span>
+              ${zones.length > 1 ? `<button data-remove="${info.tz}" class="neo-btn px-2 py-0.5 text-xs font-bold" title="Remove zone">×</button>` : ''}
+            </div>
+          </div>
+          <div class="my-2">
+            <div class="text-3xl font-extrabold mono tracking-tight">${info.time}</div>
+            <div class="text-xs opacity-75 font-medium mt-0.5">${info.date}</div>
+          </div>
+          <div class="grid grid-cols-24 gap-0.5 pt-2 border-t border-current/10" style="display:grid;grid-template-columns:repeat(24,minmax(0,1fr));">
+            ${Array.from({ length: 24 }, (_, h) => {
+              const active = h === info.hr;
+              const work = h >= 9 && h < 18;
+              return `<div title="${h}:00" class="h-2 rounded-sm ${active ? 'neo-accent scale-y-150' : work ? 'bg-current opacity-35' : 'bg-current opacity-10'}"></div>`;
+            }).join('')}
+          </div>
+        </article>
+      `).join('');
+    }
+
+    // Event Listeners
+    el('zonesGrid').addEventListener('click', e => {
+      const rm = e.target.closest('[data-remove]');
+      if (rm) {
+        zones = zones.filter(z => z !== rm.dataset.remove);
+        saveZones(); render();
+      }
+    });
+
+    el('addTzBtn').addEventListener('click', () => {
+      const tz = el('tzSelect').value;
+      if (tz && !zones.includes(tz)) { zones.push(tz); saveZones(); render(); }
+    });
+
+    el('scrubber').addEventListener('input', e => {
+      isLive = false;
+      offsetMin = parseInt(e.target.value, 10) || 0;
+      render();
+    });
+
+    el('dtInput').addEventListener('input', e => {
+      const parsed = Date.parse(e.target.value);
+      if (!isNaN(parsed)) { isLive = false; anchorMs = parsed; offsetMin = 0; el('scrubber').value = 0; render(); }
+    });
+
+    el('unixInput').addEventListener('input', e => {
+      const v = Number(e.target.value);
+      if (!isNaN(v) && v > 0) {
+        isLive = false;
+        anchorMs = v < 1e11 ? v * 1000 : v;
+        offsetMin = 0; el('scrubber').value = 0; render();
+      }
+    });
+
+    el('liveBtn').addEventListener('click', () => {
+      isLive = true; anchorMs = Date.now(); offsetMin = 0; el('scrubber').value = 0; render();
+    });
+
+    el('bestSlotBtn').addEventListener('click', () => {
+      isLive = false;
+      let bestMin = 0, bestScore = -1;
+      for (let m = -720; m <= 720; m += 30) {
+        const score = zones.reduce((acc, z) => acc + getZoneInfo(z, anchorMs + m * 60000).status.ok, 0);
+        if (score > bestScore) { bestScore = score; bestMin = m; }
+      }
+      offsetMin = bestMin; el('scrubber').value = bestMin; render();
+      showToast('Jumped to best meeting overlap!');
+    });
+
+    el('copyBtn').addEventListener('click', () => {
+      const activeMs = anchorMs + offsetMin * 60000;
+      const lines = zones.map(z => {
+        const i = getZoneInfo(z, activeMs);
+        return `${i.tz}: ${i.time.slice(0, 5)} (${i.date}) [${i.offset}]`;
+      }).join('\n');
+      const ta = document.createElement('textarea');
+      ta.value = `🌐 Universal Time Summary (${new Date(activeMs).toISOString()})\n` + lines;
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      showToast('Schedule copied to clipboard!');
+    });
+
+    el('themeBtn').addEventListener('click', () => {
+      themeIdx = (themeIdx + 1) % THEMES.length;
+      applyTheme(themeIdx);
+    });
+
+    populateTimezones();
+    applyTheme(Math.floor(Math.random() * THEMES.length));
+    render();
+    setInterval(() => { if (isLive) { anchorMs = Date.now(); render(); } }, 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TIME//SOLVER</title>
+<style>
+  * { box-sizing: border-box; font-family: monospace; }
+  body { background: #0d0f12; color: #eef; max-width: 680px; margin: 2rem auto; padding: 1rem; }
+  .box { background: #161920; border: 2px solid #00f5d4; padding: 1rem; margin-bottom: 1.2rem; box-shadow: 5px 5px 0 #00f5d4; }
+  input, button { background: #0d0f12; color: #00f5d4; border: 1px solid #00f5d4; padding: .5rem; font-size: .95rem; }
+  button { cursor: pointer; font-weight: bold; }
+  button:hover { background: #00f5d4; color: #000; }
+  input[type="range"] { width: 100%; accent-color: #fee440; margin: .8rem 0; cursor: ew-resize; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: .6rem 0; border-bottom: 1px dashed #2a2f3a; }
+  .tag { font-size: .75rem; padding: 2px 6px; border-radius: 3px; color: #000; font-weight: bold; width: 55px; text-align: center; }
+  .del { border: none; color: #ff006e; background: none; font-size: 1.2rem; }
+  .del:hover { background: none; color: #fff; }
+</style>
+</head>
+<body>
+
+  <div class="box">
+    <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap">
+      <h2 style="margin:0;color:#fee440">⚡ TIME//SOLVER</h2>
+      <div>
+        <input type="datetime-local" id="dt">
+        <button onclick="reset()">NOW</button>
+      </div>
+    </div>
+    <input type="range" id="sc" min="-720" max="720" step="15" value="0" oninput="scrub(this.value)">
+    <div id="uni" style="font-size:.85rem;color:#9aa;display:flex;justify-content:space-between"></div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
+      <input list="tzs" id="addTz" placeholder="Type any city or zone (e.g. Asia/Seoul)..." style="flex:1">
+      <datalist id="tzs"></datalist>
+      <button onclick="add()">+ ADD</button>
+    </div>
+    <div id="list"></div>
+  </div>
+
+<script>
+  const zones = new Set([Intl.DateTimeFormat().resolvedOptions().timeZone, 'UTC', 'Europe/Istanbul', 'Europe/London', 'America/New_York', 'Asia/Tokyo']);
+  let base = new Date(), offsetMin = 0;
+
+  Intl.supportedValuesOf('timeZone').forEach(z => tzs.innerHTML += `<option value="${z}">`);
+
+  function reset() { base = new Date(); sc.value = offsetMin = 0; syncInput(); render(); }
+  function scrub(v) { offsetMin = +v; render(); }
+  function syncInput() {
+    dt.value = new Date(base.getTime() - base.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+  dt.oninput = () => { if (dt.value) { base = new Date(dt.value); sc.value = offsetMin = 0; render(); } };
+
+  function add() {
+    if (Intl.supportedValuesOf('timeZone').includes(addTz.value)) {
+      zones.add(addTz.value); addTz.value = ''; render();
+    }
+  }
+
+  function render() {
+    const t = new Date(base.getTime() + offsetMin * 60000);
+    uni.innerHTML = `<span>UTC: <b style="color:#fff">${t.toISOString().slice(0,16).replace('T',' ')}Z</b></span>
+                     <span>UNIX: <b style="color:#fff">${Math.floor(t/1000)}</b></span>
+                     <span>SHIFT: <b style="color:#fee440">${offsetMin > 0 ? '+' : ''}${(offsetMin/60).toFixed(2)}h</b></span>`;
+    list.innerHTML = [...zones].map(z => {
+      const str = t.toLocaleString('en-GB', { timeZone: z, weekday: 'short', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+      const hr = +t.toLocaleString('en-US', { timeZone: z, hour: 'numeric', hour12: false }) % 24;
+      const [lbl, bg] = hr >= 9 && hr < 18 ? ['WORK', '#00f5d4'] : hr >= 7 && hr < 23 ? ['AWAKE', '#fee440'] : ['SLEEP', '#ff006e'];
+      return `<div class="row">
+        <span style="width:42%"><b>${z.split('/').pop().replace(/_/g,' ')}</b> <small style="color:#777">${z.split('/')[0]}</small></span>
+        <span class="tag" style="background:${bg}">${lbl}</span>
+        <span style="font-size:1.05rem;font-weight:bold">${str}</span>
+        <button class="del" onclick="zones.delete('${z}');render()">×</button>
+      </div>`;
+    }).join('');
+  }
+  reset();
+</script>
+</body>
+</html>
