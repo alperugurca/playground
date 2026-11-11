@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="AI kurslarını oylayın — en yüksek net puana göre sıralanır." />
+    <title>AI Course Vote</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="masthead">
+        <p class="brand">AI Course Vote</p>
+        <h1>En iyi <em>AI</em> kursları</h1>
+        <p class="lede">Topluluğun oylarıyla, net puana göre sıralanan kurs seçkisi.</p>
+        <p class="stats" id="stats"></p>
+        <span class="count-pill" id="course-count" hidden></span>
+      </header>
+
+      <section aria-labelledby="add-heading">
+        <div class="section-title">
+          <span class="rule"></span>
+          <h2 id="add-heading">Kurs öner</h2>
+          <span class="rule"></span>
+        </div>
+        <form id="add-form" class="add-form" novalidate>
+          <div class="field">
+            <label for="input-title">Başlık</label>
+            <input id="input-title" type="text" name="title" maxlength="120" minlength="2"
+                   placeholder="Kursun adı" required autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="input-url">URL</label>
+            <input id="input-url" type="url" name="url" maxlength="2048"
+                   placeholder="https://…" required inputmode="url" autocomplete="off" />
+          </div>
+          <button type="submit" id="add-button">Ekle</button>
+          <p id="form-message" class="message form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section aria-labelledby="list-heading">
+        <div class="section-title">
+          <span class="rule"></span>
+          <h2 id="list-heading">Sıralama</h2>
+          <span class="rule"></span>
+        </div>
+        <p id="status" class="message" role="status" aria-live="polite"></p>
+        <div id="course-list" class="course-list"></div>
+        <p id="empty-state" class="empty" hidden>Henüz kurs yok. İlk kursu siz ekleyin.</p>
+      </section>
+
+      <footer class="footer">Tekrarlı oy kullanılabilir · Botlara karşı hız sınırı uygulanır</footer>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

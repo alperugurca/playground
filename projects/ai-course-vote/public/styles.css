@@ -1,0 +1,326 @@
+:root {
+  --paper: #faf8f4;
+  --ink: #1c1917;
+  --muted: #78716c;
+  --faint: #a8a29e;
+  --line: #e7e0d3;
+  --line-strong: #d6ccb8;
+  --accent: #9a6b2f;
+  --accent-soft: #f3ead9;
+  --danger: #b42318;
+  --ok: #027a48;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--ink); color: var(--paper); }
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 56px 24px 48px;
+}
+
+/* ——— Masthead ——— */
+.masthead {
+  text-align: center;
+  padding-bottom: 28px;
+  border-bottom: 3px double var(--ink);
+  margin-bottom: 36px;
+}
+.brand {
+  margin: 0 0 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.masthead h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+.masthead h1 em { font-style: italic; font-weight: 500; color: var(--accent); }
+.lede { margin: 14px auto 0; max-width: 440px; color: var(--muted); font-size: 15px; }
+.stats {
+  margin: 16px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.stats:empty { display: none; }
+
+/* ——— Section titles ——— */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 36px 0 20px;
+}
+.section-title .rule { flex: 1; height: 1px; background: var(--line-strong); }
+.section-title h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* ——— Add form: alt cizgili, editoryal ——— */
+.add-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 20px;
+  align-items: end;
+}
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.field input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.field input::placeholder { color: var(--faint); }
+.field input:hover { border-bottom-color: var(--muted); }
+.field input:focus { border-bottom-color: var(--ink); }
+
+button { font: inherit; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: wait; }
+
+#add-button {
+  height: 40px;
+  padding: 0 22px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease, transform 60ms ease;
+}
+#add-button:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+#add-button:active:not(:disabled) { transform: translateY(1px); }
+
+.form-message { grid-column: 1 / -1; margin: 0; }
+.message { min-height: 1.4em; margin: 0 0 6px; font-size: 13px; color: var(--muted); text-align: center; }
+.message:empty { min-height: 0; margin: 0; }
+.message.error { color: var(--danger); }
+.message.success { color: var(--ok); }
+
+/* ——— Course rows ——— */
+.course-list { border-bottom: 1px solid var(--line); }
+.course {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 248px;
+  column-gap: 20px;
+  align-items: center;
+  padding: 20px 4px;
+  border-top: 1px solid var(--line);
+}
+.course-main { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
+.rank {
+  flex: none;
+  width: 44px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--line-strong);
+  font-variant-numeric: tabular-nums;
+}
+.course:first-child .rank { color: var(--accent); }
+
+.course-text { min-width: 0; }
+.course-title {
+  color: var(--ink);
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.course-title:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--accent); }
+.course-title .ext {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 6px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.course:hover .course-title .ext { opacity: 1; }
+.course-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ——— Voting: sabit genislikli zarif haplar ——— */
+.vote {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 248px;
+}
+.net {
+  flex: 0 0 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 8px;
+  line-height: 1.05;
+}
+.net-score {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.net-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.vote button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease,
+    box-shadow 150ms ease, transform 60ms ease;
+}
+.vote button span { line-height: 1; }
+.vote button svg { width: 15px; height: 15px; display: block; flex: none; }
+
+.vote .up {
+  flex: 0 0 88px;
+  width: 88px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.vote .up:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
+.vote .up.voted { box-shadow: 0 0 0 4px var(--accent-soft); background: var(--accent); border-color: var(--accent); }
+
+.vote .down {
+  flex: 0 0 76px;
+  width: 76px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+}
+.vote .down:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); transform: translateY(-1px); }
+.vote .down.voted { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 0 4px #fdecea; }
+
+.vote button:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+.vote button:focus-visible, #add-button:focus-visible, .field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ——— Empty / footer ——— */
+.empty {
+  margin: 0;
+  padding: 44px 0;
+  text-align: center;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--faint);
+  border-top: 1px solid var(--line);
+}
+
+.footer {
+  margin-top: 44px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
+
+/* ——— Mobile ——— */
+@media (max-width: 640px) {
+  .container { padding: 36px 18px 36px; }
+  .masthead h1 { font-size: 32px; }
+  .add-form { grid-template-columns: 1fr; gap: 16px; align-items: stretch; }
+  #add-button { height: 44px; }
+  .course { grid-template-columns: minmax(0, 1fr) 188px; padding: 16px 2px; column-gap: 12px; }
+  .course-main { gap: 12px; }
+  .rank { width: 32px; font-size: 21px; }
+  .course-title { font-size: 15.5px; }
+  .vote { width: 188px; gap: 6px; }
+  .net { flex-basis: 38px; margin-right: 4px; }
+  .net-score { font-size: 20px; }
+  .net-label { display: none; }
+  .vote button { height: 38px; font-size: 13.5px; }
+  .vote .up { flex-basis: 72px; width: 72px; }
+  .vote .down { flex-basis: 62px; width: 62px; }
+}

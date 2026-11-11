@@ -1,0 +1,16 @@
+name = "ai-course-vote"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# Statik dosyalar (public/) ASSETS binding ile sunulur, /api/* Worker'da kalir.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 1) npx wrangler d1 create ai-course-vote
+# 2) Cikan database_id degerini asagidaki yer tutucuyla degistirin.
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-course-vote"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
